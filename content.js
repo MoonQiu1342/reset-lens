@@ -182,22 +182,48 @@
   });
 
   let intervalId = null;
-  let torn = false;
+  let armed = false;
+  function arm() {
+    if (armed) return;
+    armed = true;
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    intervalId = setInterval(schedule, 60_000);
+    schedule();
+  }
   function teardown() {
-    if (torn) return;
-    torn = true;
+    if (!armed) return;
+    armed = false;
     observer.disconnect();
-    if (intervalId !== null) clearInterval(intervalId);
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
   }
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
+  function syncToUrl() {
+    if (inScope()) arm();
+    else teardown();
+  }
 
-  // Refresh countdowns derived from absolute timestamps (whose DOM doesn't mutate).
-  intervalId = setInterval(schedule, 60_000);
+  // Catch SPA navigations: pushState/replaceState don't fire popstate.
+  const origPush = history.pushState;
+  const origReplace = history.replaceState;
+  history.pushState = function () {
+    const r = origPush.apply(this, arguments);
+    syncToUrl();
+    return r;
+  };
+  history.replaceState = function () {
+    const r = origReplace.apply(this, arguments);
+    syncToUrl();
+    return r;
+  };
+  window.addEventListener("popstate", syncToUrl);
+  window.addEventListener("hashchange", syncToUrl);
 
-  schedule();
+  syncToUrl();
 })();
