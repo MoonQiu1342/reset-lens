@@ -1,6 +1,11 @@
 (function () {
   const STAMP = "data-reset-time-stamp";
 
+  const URL_MATCHERS = [
+    /^https:\/\/claude\.ai\/settings\/usage(?:[/?#]|$)/,
+    /^https:\/\/chatgpt\.com\/codex\/cloud\/settings\/analytics(?:[/?#]|$)/,
+  ];
+
   // Claude session countdown: "Resets in 3 hr 38 min" / "Resets in 5 min"
   const CLAUDE_COUNTDOWN_RE = /Resets in\s+(?:(\d+)\s*hr)?\s*(?:(\d+)\s*min)?/i;
 
@@ -18,8 +23,18 @@
   const WEEKDAYS = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
   const DOW_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  // Cache target time per DOM parent so re-scans don't drift.
+  // Cache target time per text node so React re-renders don't shift the baseline.
   const countdownTargets = new WeakMap();
+
+  function inScope() {
+    return URL_MATCHERS.some((re) => re.test(location.href));
+  }
+
+  function minuteFloor(date) {
+    const d = new Date(date);
+    d.setSeconds(0, 0);
+    return d;
+  }
 
   function formatClock(date) {
     const hm = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -68,7 +83,9 @@
       const raw = c[0];
       let cached = owner ? countdownTargets.get(owner) : null;
       if (!cached || cached.raw !== raw || cached.target <= new Date()) {
-        const target = new Date();
+        // Anchor to start of current minute so re-mounts within the same minute
+        // recompute to the same target instead of creeping forward.
+        const target = minuteFloor(new Date());
         target.setHours(target.getHours() + parseInt(c[1] || "0", 10));
         target.setMinutes(target.getMinutes() + parseInt(c[2] || "0", 10));
         cached = { raw, target };
@@ -104,26 +121,29 @@
   }
 
   function scan() {
+    if (!inScope()) {
+      teardown();
+      return;
+    }
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const hits = [];
     let n;
     while ((n = walker.nextNode())) {
       const v = n.nodeValue;
       if (!v || v.indexOf("Resets") === -1) continue;
-      if (n.parentElement && n.parentElement.hasAttribute(STAMP)) continue;
-      const label = deriveLabel(v, n.parentElement);
-      if (label) hits.push({ node: n, label });
+      const parent = n.parentElement;
+      if (!parent || parent.closest(`[${STAMP}]`)) continue;
+      const label = deriveLabel(v, n);
+      if (label) hits.push({ node: n, parent, label });
     }
-    for (const { node, label } of hits) {
-      const parent = node.parentElement;
-      if (!parent) continue;
+    for (const { node, parent, label } of hits) {
       let span = parent.querySelector(`:scope > span[${STAMP}]`);
       if (!span) {
         span = document.createElement("span");
         span.setAttribute(STAMP, "1");
         span.style.marginLeft = "4px";
         span.style.opacity = "0.7";
-        parent.appendChild(span);
+        node.after(span);
       }
       if (span.textContent !== label) span.textContent = label;
     }
@@ -143,8 +163,6 @@
     });
   }
 
-  schedule();
-
   function isOwnNode(node) {
     return node.nodeType === Node.ELEMENT_NODE && node.hasAttribute && node.hasAttribute(STAMP);
   }
@@ -163,6 +181,15 @@
     }
   });
 
+  let intervalId = null;
+  let torn = false;
+  function teardown() {
+    if (torn) return;
+    torn = true;
+    observer.disconnect();
+    if (intervalId !== null) clearInterval(intervalId);
+  }
+
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -170,5 +197,7 @@
   });
 
   // Refresh countdowns derived from absolute timestamps (whose DOM doesn't mutate).
-  setInterval(schedule, 60_000);
+  intervalId = setInterval(schedule, 60_000);
+
+  schedule();
 })();
