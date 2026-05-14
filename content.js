@@ -10,7 +10,7 @@
 
   // Codex absolute date: "Resets May 19, 2026 2:02 PM"
   const CODEX_FULL_RE =
-    /Resets\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4}\s+\d{1,2}:\d{2}\s*[AP]M)/;
+    /Resets\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4}\s+\d{1,2}:\d{2}\s*[AP]M)/i;
 
   // Codex same-day clock: "Resets 3:54 PM"
   const CODEX_TIME_RE = /Resets\s+(\d{1,2}):(\d{2})\s*([AP]M)\b/;
@@ -18,8 +18,8 @@
   const WEEKDAYS = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
   const DOW_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  // Cache target time for countdown strings so re-scans don't drift.
-  const countdownTargets = new Map();
+  // Cache target time per DOM parent so re-scans don't drift.
+  const countdownTargets = new WeakMap();
 
   function formatClock(date) {
     const hm = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -62,18 +62,19 @@
     return d;
   }
 
-  function deriveLabel(text) {
+  function deriveLabel(text, owner) {
     const c = text.match(CLAUDE_COUNTDOWN_RE);
     if (c && (c[1] || c[2])) {
-      const key = c[0];
-      let target = countdownTargets.get(key);
-      if (!target || target <= new Date()) {
-        target = new Date();
+      const raw = c[0];
+      let cached = owner ? countdownTargets.get(owner) : null;
+      if (!cached || cached.raw !== raw || cached.target <= new Date()) {
+        const target = new Date();
         target.setHours(target.getHours() + parseInt(c[1] || "0", 10));
         target.setMinutes(target.getMinutes() + parseInt(c[2] || "0", 10));
-        countdownTargets.set(key, target);
+        cached = { raw, target };
+        if (owner) countdownTargets.set(owner, cached);
       }
-      return ` (at ${formatClock(target)})`;
+      return ` (at ${formatClock(cached.target)})`;
     }
 
     let m = text.match(CLAUDE_WEEKLY_RE);
@@ -110,7 +111,7 @@
       const v = n.nodeValue;
       if (!v || v.indexOf("Resets") === -1) continue;
       if (n.parentElement && n.parentElement.hasAttribute(STAMP)) continue;
-      const label = deriveLabel(v);
+      const label = deriveLabel(v, n.parentElement);
       if (label) hits.push({ node: n, label });
     }
     for (const { node, label } of hits) {
@@ -144,17 +145,18 @@
 
   schedule();
 
+  function isOwnNode(node) {
+    return node.nodeType === Node.ELEMENT_NODE && node.hasAttribute && node.hasAttribute(STAMP);
+  }
+
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       if (m.type === "childList") {
-        let ownOnly = m.addedNodes.length > 0 || m.removedNodes.length > 0;
-        for (const node of m.addedNodes) {
-          if (!(node.nodeType === Node.ELEMENT_NODE && node.hasAttribute && node.hasAttribute(STAMP))) {
-            ownOnly = false;
-            break;
-          }
-        }
-        if (ownOnly) continue;
+        const changed = [...m.addedNodes, ...m.removedNodes];
+        if (changed.length > 0 && changed.every(isOwnNode)) continue;
+      } else if (m.type === "characterData") {
+        const parent = m.target.parentElement;
+        if (parent && parent.closest(`[${STAMP}]`)) continue;
       }
       schedule();
       return;
