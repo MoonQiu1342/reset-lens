@@ -6,7 +6,7 @@
 
   // Claude weekly: "Resets Fri 8:00 PM"
   const CLAUDE_WEEKLY_RE =
-    /Resets\s+(Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day|nesday|sday|urday|riday|onday|uesday)?\s+(\d{1,2}):(\d{2})\s*([AP]M)/i;
+    /Resets\s+(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2}):(\d{2})\s*([AP]M)/i;
 
   // Codex absolute date: "Resets May 19, 2026 2:02 PM"
   const CODEX_FULL_RE =
@@ -39,7 +39,7 @@
     const hr = Math.floor((totalMin % 1440) / 60);
     const min = totalMin % 60;
     const parts = [];
-    if (days) parts.push(`${days} day`);
+    if (days) parts.push(`${days} ${days === 1 ? "day" : "days"}`);
     if (hr) parts.push(`${hr} hr`);
     if (min || (!days && !hr)) parts.push(`${min} min`);
     return parts.join(" ");
@@ -67,7 +67,7 @@
     if (c && (c[1] || c[2])) {
       const key = c[0];
       let target = countdownTargets.get(key);
-      if (!target) {
+      if (!target || target <= new Date()) {
         target = new Date();
         target.setHours(target.getHours() + parseInt(c[1] || "0", 10));
         target.setMinutes(target.getMinutes() + parseInt(c[2] || "0", 10));
@@ -166,4 +166,7 @@
     subtree: true,
     characterData: true,
   });
+
+  // Refresh countdowns derived from absolute timestamps (whose DOM doesn't mutate).
+  setInterval(schedule, 60_000);
 })();
