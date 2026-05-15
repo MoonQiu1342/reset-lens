@@ -209,19 +209,23 @@
     else teardown();
   }
 
-  // Catch SPA navigations: pushState/replaceState don't fire popstate.
-  const origPush = history.pushState;
-  const origReplace = history.replaceState;
-  history.pushState = function () {
-    const r = origPush.apply(this, arguments);
-    syncToUrl();
-    return r;
-  };
-  history.replaceState = function () {
-    const r = origReplace.apply(this, arguments);
-    syncToUrl();
-    return r;
-  };
+  // SPA navigation. We can't monkey-patch history.pushState from a content
+  // script — that runs in an isolated world and the page's own pushState calls
+  // go through a different realm. Navigation API is exposed per-realm but
+  // fires for same-document navigations initiated by the page; fall back to
+  // polling location.href on older Chromium.
+  if (window.navigation && typeof window.navigation.addEventListener === "function") {
+    window.navigation.addEventListener("navigatesuccess", syncToUrl);
+    window.navigation.addEventListener("currententrychange", syncToUrl);
+  } else {
+    let lastHref = location.href;
+    setInterval(() => {
+      if (location.href !== lastHref) {
+        lastHref = location.href;
+        syncToUrl();
+      }
+    }, 500);
+  }
   window.addEventListener("popstate", syncToUrl);
   window.addEventListener("hashchange", syncToUrl);
 
