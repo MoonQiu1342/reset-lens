@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reset Lens",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Translate reset times on Claude and Codex usage pages: countdowns become clock times, absolute times get a countdown.",
   "icons": {
     "16": "icon16.png",
@@ -12,8 +12,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://claude.ai/settings/usage*",
-        "https://chatgpt.com/codex/cloud/settings/analytics*"
+        "https://claude.ai/*",
+        "https://chatgpt.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",
