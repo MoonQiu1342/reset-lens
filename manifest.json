@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Reset Lens",
-  "version": "1.6",
+  "version": "1.7",
   "description": "Translate reset times on Claude and Codex usage pages: countdowns become clock times, absolute times get a countdown.",
   "icons": {
     "16": "icon16.png",

@@ -25,6 +25,7 @@
 
   // Cache target time per text node so React re-renders don't shift the baseline.
   const countdownTargets = new WeakMap();
+  const liveLabels = new Map();
 
   function inScope() {
     return URL_MATCHERS.some((re) => re.test(location.href));
@@ -120,11 +121,33 @@
     return null;
   }
 
+  function bindLiveLabel(span, node) {
+    liveLabels.set(span, { node });
+  }
+
+  function refreshLiveLabels() {
+    for (const [span, record] of liveLabels) {
+      if (!span.isConnected || !record.node.isConnected) {
+        if (span.isConnected) span.remove();
+        liveLabels.delete(span);
+        continue;
+      }
+      const label = deriveLabel(record.node.nodeValue || "", record.node);
+      if (!label) {
+        span.remove();
+        liveLabels.delete(span);
+        continue;
+      }
+      if (span.textContent !== label) span.textContent = label;
+    }
+  }
+
   function scan() {
     if (!inScope()) {
       teardown();
       return;
     }
+    refreshLiveLabels();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const hits = [];
     let n;
@@ -145,6 +168,7 @@
         span.style.opacity = "0.7";
         node.after(span);
       }
+      bindLiveLabel(span, node);
       if (span.textContent !== label) span.textContent = label;
     }
   }
@@ -191,7 +215,7 @@
       subtree: true,
       characterData: true,
     });
-    intervalId = setInterval(schedule, 60_000);
+    intervalId = setInterval(schedule, 15_000);
     schedule();
   }
   function teardown() {
@@ -202,6 +226,7 @@
       clearInterval(intervalId);
       intervalId = null;
     }
+    liveLabels.clear();
   }
 
   function syncToUrl() {

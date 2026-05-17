@@ -21,7 +21,7 @@ Same idea both directions: if the page tells you "when", we tell you "how long";
 
 ## How it works
 
-A content script walks text nodes containing `Resets`, parses the format, and appends a small sibling `<span>` showing the translated time. The original text is left untouched, so the page's own layout is never broken. Countdown→clock results are cached per countdown string so they don't drift between rescans.
+A content script walks text nodes containing `Resets`, parses the format, and appends a small sibling `<span>` showing the translated time. The original text is left untouched, so the page's own layout is never broken. Countdown→clock results are cached per countdown string so they don't drift between rescans, while injected countdown labels are refreshed on a live timer so they keep moving while the page stays open.
 
 ## License
 
