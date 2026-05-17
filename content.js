@@ -215,15 +215,23 @@
       subtree: true,
       characterData: true,
     });
-    intervalId = setInterval(schedule, 15_000);
+    scheduleNextMinute();
     schedule();
+  }
+  function scheduleNextMinute() {
+    const now = new Date();
+    const ms = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50;
+    intervalId = setTimeout(() => {
+      schedule();
+      if (armed) scheduleNextMinute();
+    }, ms);
   }
   function teardown() {
     if (!armed) return;
     armed = false;
     observer.disconnect();
     if (intervalId !== null) {
-      clearInterval(intervalId);
+      clearTimeout(intervalId);
       intervalId = null;
     }
     liveLabels.clear();
