@@ -2,7 +2,7 @@
   const STAMP = "data-reset-time-stamp";
 
   const URL_MATCHERS = [
-    /^https:\/\/claude\.ai\/settings\/usage(?:[/?#]|$)/,
+    /^https:\/\/claude\.ai\/(?:settings\/usage|.*#settings\/usage)(?:[?#]|$)/,
     /^https:\/\/chatgpt\.com\/codex\/cloud\/settings\/analytics(?:[/?#]|$)/,
   ];
 
