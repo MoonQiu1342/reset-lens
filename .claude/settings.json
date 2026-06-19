@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); case \"$f\" in *.js) node --check \"$f\" || exit 2 ;; *.py) if command -v python3 >/dev/null; then python3 -m py_compile \"$f\" || exit 2; fi ;; esac",
+            "statusMessage": "syntax check"
+          }
+        ]
+      }
+    ]
+  }
+}
